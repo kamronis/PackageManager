@@ -6,11 +6,11 @@ import scala.util.control.Breaks.{break, breakable}
 
 object PackageManager {
   def main(args: Array[String]): Unit = {
-    loadPackageLibrary("src/PackageLibraryV.txt")
+    loadPackageLibrary("src/PackageLibrary.txt")
 
     checkForCycles()
 
-    loadInputPackage("src/InputPackageV.txt")
+    loadInputPackage("src/InputPackage.txt")
 
     getMissingDependencies()
     println
@@ -60,16 +60,14 @@ object PackageManager {
     def dfsFindMissing(vertexAndAdj: (String, List[String]), resultList: ListBuffer[List[String]], visited: ListBuffer[String] = ListBuffer[String]()): Unit = {
       //Depth-first search + missing dependencies list building
       for (el <- vertexAndAdj._2) {
-
-        if (!inputDependencies.contains(el) && !resultList.exists(list => list.last == el)) {
+        subgraphVertices += el
+        if (!inputDependencies.contains(el) && !resultList.exists(list => list.last == el))
           resultList += (visited :+ el).toList
-          subgraphVertices += el
-        }
+
         visited --= visited.takeRight(visited.length - 1 - visited.indexOf(vertexAndAdj._1))
         val vertices = graph.get(el)
-        if (vertices.isDefined) {
+        if (vertices.isDefined)
           dfsFindMissing((el, vertices.get), resultList, visited :+ el)
-        }
 
       }
     }
@@ -99,6 +97,37 @@ object PackageManager {
     resultList.toList
   }
 
+  def getDependencyTreeList(lib: String): List[String] = {
+
+    def dfsFind(vertexAndAdj: (String, List[String]), visited: ListBuffer[String]): Unit = {
+      //Depth-first search until lib found
+      breakable {
+        for (el <- vertexAndAdj._2) {
+          if (visited.contains(lib))
+            break
+          visited --= visited.takeRight(visited.length - 1 - visited.indexOf(vertexAndAdj._1))
+          if (el == lib) {
+            visited += el
+            break
+          } else {
+            val vertices = graph.get(el)
+            if (vertices.isDefined)
+              dfsFind((el, vertices.get), visited += el)
+          }
+        }
+      }
+    }
+
+    val visited_vertices: ListBuffer[String] = ListBuffer[String]()
+    graph.get(inputPackageName) match {
+      case Some(vertices) =>
+        dfsFind((inputPackageName, vertices), visited_vertices)
+      case None =>
+        throw new Exception("No dependant packages for " + inputPackageName)
+    }
+    visited_vertices.toList
+  }
+
   def getDependencyTree(lib: String): Unit = {
     if (lib == inputPackageName)
       println(lib)
@@ -122,38 +151,5 @@ object PackageManager {
       resultList.foreach(el => println("- " + el))
     } else
       println("No excess dependencies found")
-  }
-
-  def getDependencyTreeList(lib: String): List[String] = {
-
-    def dfsFind(vertexAndAdj: (String, List[String]), visited: ListBuffer[String]): Unit = {
-      //Depth-first search until lib found
-      breakable {
-        for (el <- vertexAndAdj._2) {
-          if (visited.contains(lib)) {
-            break
-          }
-          visited --= visited.takeRight(visited.length - 1 - visited.indexOf(vertexAndAdj._1))
-          if (el == lib) {
-            visited += el
-            break
-          } else {
-            val vertices = graph.get(el)
-            if (vertices.isDefined) {
-              dfsFind((el, vertices.get), visited += el)
-            }
-          }
-        }
-      }
-    }
-
-    val visited_vertices: ListBuffer[String] = ListBuffer[String]()
-    graph.get(inputPackageName) match {
-      case Some(vertices) =>
-        dfsFind((inputPackageName, vertices), visited_vertices)
-      case None =>
-        throw new Exception("No dependant packages for " + inputPackageName)
-    }
-    visited_vertices.toList
   }
 }
